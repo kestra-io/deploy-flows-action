@@ -1,171 +1,115 @@
 # Deploy Action
 
-Official GitHub Action to create a CI/CD pipeline that deploys [Flows](https://kestra.io/docs/workflow-components/flow) or [Namespace Files](https://kestra.io/docs/concepts/namespace-files) to your Kestra server.
+Official GitHub Action to create a CI/CD pipeline that deploys [Flows](https://kestra.io/docs/workflow-components/flow) to your Kestra server.
 
 This action should be used within a workflow that runs only on your `main` branch.
 
 ## Important notes❗️
 
-Only **one namespace** can be specified in each <code>Kestra Deploy Action</code> so you may need to
-reuse the action for each namespace. Here is an example:
+If no namespace is provided, every flow in the provided directory can be created/updated, but take care that if the `delete` property is not set to false, then every flows not in the folder will be deleted from your instance.
 
+If a namespace is provided, every children of this namespace will be allowed.
+Let say we have 3 namespaces:
+- `prod`
+- `prod.data`
+- `prod.marketing`
+
+The following will update our three namespaces :
 ```yaml
       - name: deploy-prod
-        uses: kestra-io/deploy-action@master
+        uses: kestra-io/deploy-flows-action@master
         with:
           namespace: prod
           directory: ./flows
-      - name: deploy-prod-marketing
-        uses: kestra-io/deploy-action@master
-        with:
-          namespace: prod.marketing
-          directory: ./flows/marketing
 ```
-
-Also, note that this GitHub Action supports flows built with Kestra v0.6.1+.
+While the following will update only the `prod.data` namespace, and will throw if a flow with the namespace `prod` or `prod.marketing` is found:
+```yaml
+      - name: deploy-prod
+        uses: kestra-io/deploy-flows-action@master
+        with:
+          namespace: prod.data
+          directory: ./flows
+```
 
 ## What does the action do?
 
-It takes a `directory` as an input argument, indicating the directory within your repository where your `Flow` or `Template` YAML files are stored.
+It takes a `directory` as an input argument, indicating the directory within your repository where your `Flow`YAML files are stored.
 
 For each resource, the following outcomes are possible:
-  * **Create** a flow or a template resource, if the resource does not exist.
-  * **Update** a flow or a template resource, if the resource exists.
-  * **Delete** a flow or a template resource, if the resource exists, but the file does not exist anymore (i.e. the flow or template file got deleted).
+  * **Create** a flow, if the resource does not exist.
+  * **Update** a flow, if the resource exists.
+  * **Delete** a flow, if the resource exists, but the file does not exist anymore (i.e. the flow file got deleted).
       * You can disable the deletion of a given resource by setting `delete: false` in the action, as shown in the full example below.
 
-The action logs all these outcomes by specifying which resources got updated, added or deleted.
+The action logs all these outcomes by specifying which flows got updated, added or deleted.
 
 ## Usage
 
-Note that the action can NOT update multiple namespaces at the same time. We recommend grouping your `Flows` and
-`Templates` into subdirectories indicating a specific namespace. For the example shown above, your directory structure could look as follows:
+Note that the action will look recursively for yaml file in the provided directory.
+For the example shown above, your directory structure could look as follows, and by provided `./flows` as the directory, only files in `flows` and `nested` folders will be read:
 ```bash
-.
 ├── flows
 │   ├── flow1.yml
 │   ├── flow2.yml
-│   └── flow3.yml
+│   ├── flow3.yml
+│   └── nested
+│       ├── nested_flow1.yml
+│       ├── nested_flow2.yml
+│       └── nested_flow3.yml
 ├── marketing
 │   ├── marketing__flow1.yml
 │   ├── marketing__flow2.yml
 │   └── marketing__flow3.yml
 ```
 
-Also, you should always deploy your `Templates` before your `Flows`, to avoid running before their
-templates are created.
-
-Namespace files should also be deployed before the flows to prevent a flow depending on one of these files before the file exists.
-
-## `.kestraignore` file
-Note that when using the `namespace_files` resource type, you can add a special file called `.kestraignore` to ignore some files and folders using regular expression patterns that follow the [.gitignore](https://git-scm.com/docs/gitignore) syntax.
-
-### Example
-Example of a `.kestraignore` file (which works exactly the same way as `.gitignore`):
-
-```gitignore
-flows/
-Dockerfile
-docker-compose.yml
-*.md
-```
-
-
 ### Inputs
 
 | Inputs        | Required           | Default | Description                                                                                                                                                         |
 |---------------|--------------------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ``namespace`` | :heavy_check_mark: |         | Namespace containing your flows and templates                                                                                                                       |
-| ``directory`` | :heavy_check_mark: |         | Folder containing your resources                                                                                                                                    |
-| ``resource``  | :heavy_check_mark: |         | Resource you want to update in your namespace, can be either `flow`,`template` or `namespace_files`                                                      |
+| ``directory`` | :heavy_check_mark: |         | Folder containing your flows, can have nested folders                                                                                                                                    |
 | ``server``    | :heavy_check_mark: |         | URL of your Kestra server                                                                                                                                           |
-| ``user``      | :x:                |         | User name of your Kestra server                                                                                                                                     |
+| ``namespace`` | :x: |         | Namespace containing your flows                                                                                          |
+| ``user``      | :x:                |         | Username of your Kestra server                                                                                                                                     |
 | ``password``  | :x:                |         | Password of your Kestra server                                                                                                                                      |
-| ``delete``    | :x:                | true    | `Flows` found in Kestra server, but no longer existing in a specified directory, will be deleted by default. Set this to `false` if you want to avoid that behavior |
+| ``delete``    | :x:                | true  | `Flows` found in Kestra server, but no longer existing in a specified directory, will be deleted by default. Set this to `false` if you want to avoid that behavior |
 | ``tenant``    | :x:                |         | Tenant identifier (EE only, when multi-tenancy is enabled)                                                                                                          |
-| ``to``    | :x:                |         | Remote path indicating where to upload namespace files to                                                                                                          |
+| ``apiToken``    | :x:                |         | Token to identify to your instance to                                                                                                          |
 
 
 ### Auth
 
-Depending on your Kestra edition, you may need to include a `user` and `password` to authenticate the action with your Kestra server.
+Depending on your Kestra edition, you may need to include a `user` and `password` or an `apiToken` to authenticate the action with your Kestra server.
 
 ### Example
 
-Example with `Flows` resources:
+Example where we only update only the `prod.data` namespace and delete every flows not found in the folders from the Kestra instance:
 
 ```yaml
-      - name: flow update namespace action
-        uses: kestra-io/deploy-action@master
+      - name: deploy-prod
+        uses: kestra-io/deploy-flows-action@master
         with:
-          namespace: io.kestra.namespace
-          resource: flow
-          directory: ./flows/namespace_dedicated_folder
-          server: https:/kestra.io
-```
-
-Example with `namespace_file` resources:
-
-```yaml
-      - name: template update namespace action
-        uses: kestra-io/deploy-action@master
-        with:
-          namespace: io.kestra.namespace
-          resource: namespace_file
-          directory: ./files/namespace_dedicated_folder
-          server: https:/kestra.io
-```
-
-Example with `Templates` resources (deprecated):
-
-```yaml
-      - name: template update namespace action
-        uses: kestra-io/deploy-action@master
-        with:
-          namespace: io.kestra.namespace
-          resource: template
-          directory: ./templates/namespace_dedicated_folder
-          server: https:/kestra.io
-```
-
-
-## Full Example
-
-Assuming that you store all your flow YAML files in the `flows` directory and that all flows belong to the namespace `prod`, you can configure a GitHub Action workflow by creating the following file (you can store the file as `.github/workflows/main.yml`):   
-
-```yaml
-name: Kestra CI/CD
-on: 
-  workflow_dispatch:
-jobs:
-  kestra:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: deploy
-        uses: kestra-io/deploy-action@master
-        with:
-          namespace: prod
+          namespace: prod.data
           directory: ./flows
-          resource: flow
-          server: ${{secrets.KESTRA_HOST}}
-          user: ${{secrets.KESTRA_USER}}
-          password: ${{secrets.KESTRA_PASSWORD}}
+```
+
+Example where we only update only the `prod.data` namespace and keep everyflows created before:
+
+```yaml
+      - name: deploy-prod
+        uses: kestra-io/deploy-flows-action@master
+        with:
+          namespace: prod.data
+          directory: ./flows
           delete: false
 ```
 
-This setup also assumes that you stored the host name, user name and password as Actions secrets. 
-
-Finally, instead of only running this workflow manually, you can configure it to be triggered upon push to the main branch:
+Example where we synchronize every flows of our instance with flows in our flows folder:
 
 ```yaml
-name: Kestra CI/CD
-on:
-  push:
-    branches:
-      - main
-jobs:
-  ...
+      - name: deploy-prod
+        uses: kestra-io/deploy-flows-action@master
+        with:
+          directory: ./flows
 ```
 
 Read more in the documentation [here](https://kestra.io/docs/version-control-cicd/cicd/github-action).
