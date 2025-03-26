@@ -49,4 +49,4 @@ curl -v -L -H "Content-Type: application/json" -d '{
 }' "$PH_API_HOST"capture/ > /dev/null
 
 # Run it
-/app/kestra flows updates "$1" "$2" --server="$5" $auth $delete $namespace $tenant $apiToken
+/app/kestra flow updates "$1" "$2" --server="$5" $auth $delete $namespace $tenant $apiToken
